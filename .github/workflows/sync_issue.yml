@@ -28,18 +28,13 @@ on:
 jobs:
   sync:
     name: Issue同步
-    if: ${{ !github.event.issue.pull_request && !startsWith(github.event.comment.body, 'Link To' )}}
+    if: ${{ !github.event.issue.pull_request )}}
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ISSUE: ${{ github.event.issue.number }}
       REPO: ${{ github.repository }}
-      CURRENT_COMMENT: ${{ github.event.comment.body }}
     steps:
-      - env:
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-        shell: pwsh
-        run: echo $env:GITHUB_CONTEXT
       - name: 执行脚本
         shell: pwsh
         run: |
@@ -76,10 +71,5 @@ jobs:
               $_.updated_at
               # 内容
               $_.body
-              $no_comment = $no_comment -or $_.body.StartsWith('Link To')
             }
-          }
-          if(!$no_comment){
-            $req = @{ body = "Link To [#$env:ISSUE]($($issue.html_url))" } | ConvertTo-Json
-            $response = Invoke-WebRequest -Method POST -Uri $comments_uri -Authentication Bearer -Token $token -Body $req
           }
