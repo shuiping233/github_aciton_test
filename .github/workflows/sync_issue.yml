@@ -58,7 +58,7 @@ jobs:
           $issue.body
 
           # 评论
-          if($issue.comments > 0){
+          if($issue.comments -gt 0){
             $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE/comments" -Authentication Bearer -Token $token
             $response.Content | ConvertFrom-Json | ForEach-Object {
               # 创建人
