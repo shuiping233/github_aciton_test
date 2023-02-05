@@ -141,6 +141,8 @@ jobs:
           }
 
           $DB | ConvertTo-Json | Out-File -Force -FilePath 'databases.json'
+          git config user.email "actions@github.com"
+          git config user.name "Github Actions"
           git add 'databases.json'
           git commit -m ([DateTime]::Now.ToString('O'))
           git push
