@@ -38,6 +38,7 @@ jobs:
       - name: 执行脚本
         shell: pwsh
         run: |
+          # 真的不容易啊
           $token = ConvertTo-SecureString -AsPlainText "$env:GITHUB_TOKEN"
           $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE" -Authentication Bearer -Token $token
           $data = $response.Content | ConvertFrom-Json
