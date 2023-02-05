@@ -32,8 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      ISSUE: ${{ github.event.issue.number }}
-      REPO: ${{ github.repository }}
+      GITHUB_ISSUE: ${{ github.event.issue.number }}
+      GITHUB_REPO: ${{ github.repository }}
       GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
       GITLAB_API: ${{ secrets.GITLAB_API }}
       GITLAB_PROJECT_ID: ${{ secrets.GITLAB_PROJECT_ID }}
@@ -43,8 +43,8 @@ jobs:
         shell: pwsh
         run: |
           # 获取Issue信息
-          $GITHUB_PROJECT_ID = $env:REPO
-          $GITHUB_ISSUE = $env:ISSUE
+          $GITHUB_PROJECT_ID = $env:GITHUB_REPO
+          $GITHUB_ISSUE = $env:GITHUB_ISSUE
           $GITHUB_ISSUE_URI = "https://api.github.com/repos/$GITHUB_PROJECT_ID/issues/$GITHUB_ISSUE"
           $GITHUB_ISSUE_COMMENTS_URI = "$GITHUB_ISSUE_URI/comments"
           $GITHUB_TOKEN = ConvertTo-SecureString -AsPlainText $env:GITHUB_TOKEN
@@ -98,6 +98,9 @@ jobs:
             }
 
             # 状态
+            # if ($githubIssue.state -eq 'open' -and $gitlabIssue.description -ne 'opened') {
+            #   $query += '&state_event=opened'
+            # }
             if ($githubIssue.state -eq 'CLOSED' -and $gitlabIssue.description -ne 'close') {
               $query += '&state_event=close'
             }
@@ -135,19 +138,21 @@ jobs:
             }
             $query = "?$($query.Trim('&'))"
 
-            $gitlabIssue = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+            if ($query -ne '?') {
+              $gitlabIssue = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+            }
 
             # 评论
             $commentdb = $DB[$GITHUB_ISSUE] ?? @{}
             if ($githubIssue.comments -gt 0) {
               (Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $GITHUB_TOKEN).Content | ConvertFrom-Json | ForEach-Object {
-                if ($null -eq $commentdb[$_.id]){
+                if ($null -eq $commentdb[$_.id]) {
                   # 创建评论
-                  $gitlabNotes = (Invoke-WebRequest -Method POST -Uri "$GITLAB_ISSUE_URI/$iid/nodes?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+                  $gitlabNotes = (Invoke-WebRequest -Method POST -Uri "$GITLAB_ISSUE_URI/$iid/notes?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
                   $commentdb[$_.id] = $gitlabNotes.id
                 }
                 else {
-                  $gitlabNotes = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid/nodes/$($commentdb[$_.id])?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+                  $gitlabNotes = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid/notes/$($commentdb[$_.id])?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
                 }
               }
             }
