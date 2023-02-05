@@ -7,18 +7,18 @@ on:
       - edited
       - deleted
       - transferred
-      - pinned
-      - unpinned
+      # - pinned
+      # - unpinned
       - closed
       - reopened
-      - assigned
-      - unassigned
+      # - assigned
+      # - unassigned
       - labeled
       - unlabeled
       - locked
       - unlocked
-      - milestoned
-      - demilestoned
+      # - milestoned
+      # - demilestoned
   issue_comment:
     types:
       - created
@@ -38,18 +38,38 @@ jobs:
       - name: 执行脚本
         shell: pwsh
         run: |
-          # 真的不容易啊
+          # 获取Issue信息
           $token = ConvertTo-SecureString -AsPlainText "$env:GITHUB_TOKEN"
           $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE" -Authentication Bearer -Token $token
-          $data = $response.Content | ConvertFrom-Json
-          $title = $data.title
-          $user = $data.user.login
-          $state = $data.state
-          $labels = $data.labels | ForEach-Object { $_.name }
-          $content = $data.body
-          Write-Host $title -ForegroundColor Yellow
-          Write-Host $state -ForegroundColor Yellow
-          Write-Host $user -ForegroundColor Yellow
-          Write-Host $labels -ForegroundColor Yellow
-          Write-Host $content -ForegroundColor Yellow
+          $issue = $response.Content | ConvertFrom-Json
+          # 标题
+          $issue.title
+          # 创建日期
+          $issue.created_at
+          # 更新日期
+          $issue.updated_at
+          # 创建人
+          $issue.user.login
+          # 状态
+          $issue.state
+          # 标签
+          $issue.labels | ForEach-Object { $_.name }
+          # 内容
+          $issue.body
+
+          # 评论
+          if($issue.comments > 0){
+            $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE/comments" -Authentication Bearer -Token $token
+            $response.Content | ConvertFrom-Json | ForEach-Object {
+              # 创建人
+              $_.user.login
+              # 创建日期
+              $_.created_at
+              # 更新日期
+              $_.updated_at
+              # 内容
+              $_.body
+            }
+          }
+
 
