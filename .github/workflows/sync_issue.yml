@@ -96,24 +96,20 @@ jobs:
             if ($githubIssue.title -ne $gitlabIssue.title) {
               $query += "&title=$([Uri]::EscapeDataString($githubIssue.title))"
             }
-            # TODO: 此处需要修复
+
             # 状态
-            $statusNeedUpdate = $true
-            if ($githubIssue.state -eq 'open' -and $gitlabIssue.description -eq 'opened') {
-              $statusNeedUpdate = $false
+            if ($githubIssue.state -eq 'open' -and $gitlabIssue.description -ne 'opened') {
+              $query += '&state_event=opened'
             }
             elseif ($githubIssue.state -eq 'CLOSED' -and $gitlabIssue.description -eq 'close') {
-              $statusNeedUpdate = $false
+              $query += '&state_event=close'
             }
             elseif ($githubIssue.state -eq 'reopen' -and $gitlabIssue.description -eq 'reopen') {
-              $statusNeedUpdate = $false
+              $query += '&state_event=reopen'
             }
             else {
               Write-Host $githubIssue.state -ForegroundColor Cyan
               Write-Host $gitlabIssue.state -ForegroundColor Green
-            }
-            if ($statusNeedUpdate) {
-              $query += "&state_event=$([Uri]::EscapeDataString($GITLAB_GITHUB_STATUS_MAP[$githubIssue.$issue.state]))"
             }
 
             # 主体
