@@ -19,11 +19,11 @@ on:
       # - unlocked
       # - milestoned
       # - demilestoned
-  # issue_comment:
-  #   types:
-  #     - created
-  #     - edited
-  #     - deleted
+  issue_comment:
+    types:
+      - created
+      - edited
+      - deleted
 
 jobs:
   sync:
@@ -80,41 +80,48 @@ jobs:
 
             $gitlabIssue = (Invoke-WebRequest -Method Post -Uri "$GITLAB_ISSUE_URI$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
 
-            $DB[$GITHUB_ISSUE] = $gitlabIssue.iid
-            if ($null -eq $DB[$GITHUB_ISSUE]){
+            $DB[$GITHUB_ISSUE] = @{
+              id = $gitlabIssue.iid
+            }
+            if ($null -eq $DB[$GITHUB_ISSUE]) {
               throw
             }
-
-            # # 评论
-            # if ($issue.comments -gt 0) {
-            #   $response = Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $token
-            #   $response.Content | ConvertFrom-Json | ForEach-Object {
-            #     # 创建人
-            #     $_.user.login
-            #     # 创建日期
-            #     $_.created_at
-            #     # 更新日期
-            #     $_.updated_at
-            #     # 内容
-            #     $_.body
-            #   }
-            # }
           }
           else {
+            $iid = $DB[$GITHUB_ISSUE]['id']
             # 有已保存的Issue信息，修改Issue
-            $gitlabIssue = (Invoke-WebRequest -Method Get -Uri "$GITLAB_ISSUE_URI/$($DB[$GITHUB_ISSUE])" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+            $gitlabIssue = (Invoke-WebRequest -Method Get -Uri "$GITLAB_ISSUE_URI/$iid" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
 
             $query = ''
             if ($githubIssue.title -ne $gitlabIssue.title) {
               $query += "&title=$([Uri]::EscapeDataString($githubIssue.title))"
             }
             # TODO: 此处需要修复
-            # if ($githubIssue.state -ne $GITHUB_GITLAB_STATUS_MAP[$gitlabIssue.state]) {
-            #   $query += "&state_event=$([Uri]::EscapeDataString($GITLAB_GITHUB_STATUS_MAP[$githubIssue.$issue.state]))"
-            # }
-            if ($githubIssue.body -ne $gitlabIssue.description) {
-              $query += "&description=[Uri]::EscapeDataString($githubIssue.body)"
+            # 状态
+            $statusNeedUpdate = $true
+            if ($githubIssue.state -eq 'open' -and $gitlabIssue.description -eq 'opened') {
+              $statusNeedUpdate = $false
             }
+            elseif ($githubIssue.state -eq 'CLOSED' -and $gitlabIssue.description -eq 'close') {
+              $statusNeedUpdate = $false
+            }
+            elseif ($githubIssue.state -eq 'reopen' -and $gitlabIssue.description -eq 'reopen') {
+              $statusNeedUpdate = $false
+            }
+            else {
+              Write-Host $githubIssue.state -ForegroundColor Cyan
+              Write-Host $gitlabIssue.state -ForegroundColor Green
+            }
+            if ($statusNeedUpdate) {
+              $query += "&state_event=$([Uri]::EscapeDataString($GITLAB_GITHUB_STATUS_MAP[$githubIssue.$issue.state]))"
+            }
+
+            # 主体
+            if ($githubIssue.body -ne $gitlabIssue.description) {
+              $query += "&description=$([Uri]::EscapeDataString($githubIssue.body))"
+            }
+
+            # 标签
             if ($null -ne $githubIssue.labels) {
               $query += '&add_labels='
               $githubIssueLabels = $githubIssue.labels | ForEach-Object { $_.name }
@@ -135,7 +142,23 @@ jobs:
             }
             $query = "?$($query.Trim('&'))"
 
-            $gitlabIssue = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$($DB[$GITHUB_ISSUE])$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+            $gitlabIssue = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+
+            # 评论
+            $commentdb = $DB[$GITHUB_ISSUE] ?? @{}
+            if ($githubIssue.comments -gt 0) {
+              (Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $token).Content | ConvertFrom-Json | ForEach-Object {
+                if ($null -eq $commentdb[$_.id]){
+                  # 创建评论
+                  $gitlabNotes = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid/nodes?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+                  $commentdb[$_.id] = $gitlabNotes.id
+                }
+                else {
+                  $gitlabNotes = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid/nodes/$($commentdb[$_.id])?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+                }
+              }
+            }
+            $DB[$GITHUB_ISSUE]['comments'] = $commentdb
           }
 
           $DB | ConvertTo-Json | Out-File -Force -FilePath 'databases.json'
