@@ -140,7 +140,7 @@ jobs:
             # 评论
             $commentdb = $DB[$GITHUB_ISSUE] ?? @{}
             if ($githubIssue.comments -gt 0) {
-              (Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $token).Content | ConvertFrom-Json | ForEach-Object {
+              (Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $GITHUB_TOKEN).Content | ConvertFrom-Json | ForEach-Object {
                 if ($null -eq $commentdb[$_.id]){
                   # 创建评论
                   $gitlabNotes = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid/nodes?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
