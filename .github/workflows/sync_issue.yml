@@ -38,8 +38,10 @@ jobs:
       - name: 执行脚本
         shell: pwsh
         run: |
-          $token = ConvertTo-SecureString -AsPlainText "$env:TOKEN"
+          $token = ConvertTo-SecureString -AsPlainText "$env:SOME_TOKEN"
           $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE" -Authentication Bearer -Token $token
           Write-Host $response.Content
-          # $data = $response.Content | ConvertFrom-Json
+          $data = $response.Content | ConvertFrom-Json
+          $title = $data.title
+          $content = $data.body
 
