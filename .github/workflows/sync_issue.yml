@@ -35,6 +35,10 @@ jobs:
       ISSUE: ${{ github.event.issue.number }}
       REPO: ${{ github.repository }}
     steps:
+      - env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+        shell: pwsh
+        run: echo $env:GITHUB_CONTEXT
       - name: 执行脚本
         shell: pwsh
         run: |
@@ -71,5 +75,3 @@ jobs:
               $_.body
             }
           }
-
-
