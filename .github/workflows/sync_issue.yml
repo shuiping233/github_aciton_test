@@ -98,13 +98,10 @@ jobs:
             }
 
             # 状态
-            if ($githubIssue.state -eq 'open' -and $gitlabIssue.description -ne 'opened') {
-              $query += '&state_event=opened'
-            }
-            elseif ($githubIssue.state -eq 'CLOSED' -and $gitlabIssue.description -eq 'close') {
+            if ($githubIssue.state -eq 'CLOSED' -and $gitlabIssue.description -ne 'close') {
               $query += '&state_event=close'
             }
-            elseif ($githubIssue.state -eq 'reopen' -and $gitlabIssue.description -eq 'reopen') {
+            elseif ($githubIssue.state -eq 'reopen' -and $gitlabIssue.description -ne 'reopen') {
               $query += '&state_event=reopen'
             }
             else {
