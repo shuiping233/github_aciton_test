@@ -38,7 +38,11 @@ jobs:
       - name: 执行脚本
         shell: pwsh
         run: |
-          $token = ConvertTo-SecureString -AsPlainText "$env:SOME_TOKEN"
+          if([string]::IsNullOrEmpty($env:SOME_TOKEN)){
+            $token = ConvertTo-SecureString -AsPlainText "$env:TEST_TOKEN"
+          } else {
+            $token = ConvertTo-SecureString -AsPlainText "$env:SOME_TOKEN"
+          }
           $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE" -Authentication Bearer -Token $token
           Write-Host $response.Content
           $data = $response.Content | ConvertFrom-Json
