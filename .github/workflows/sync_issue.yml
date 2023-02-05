@@ -31,18 +31,14 @@ jobs:
     if: ${{ !github.event.issue.pull_request }}
     runs-on: ubuntu-latest
     env:
-      TOKEN: ${{ github.token }}
+      TOKEN: ${{ secrets.TEST_TOKEN }}
       ISSUE: ${{ github.event.issue.number }}
       REPO: ${{ github.repository }}
     steps:
       - name: 执行脚本
         shell: pwsh
         run: |
-          if([string]::IsNullOrEmpty($env:SOME_TOKEN)){
-            $token = ConvertTo-SecureString -AsPlainText "$env:TEST_TOKEN"
-          } else {
-            $token = ConvertTo-SecureString -AsPlainText "$env:SOME_TOKEN"
-          }
+          $token = ConvertTo-SecureString -AsPlainText "$env:TOKEN"
           $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE" -Authentication Bearer -Token $token
           Write-Host $response.Content
           $data = $response.Content | ConvertFrom-Json
