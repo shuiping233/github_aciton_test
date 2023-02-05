@@ -54,12 +54,6 @@ jobs:
           $GITLAB_ISSUE_URI = "$env:GITLAB_API/projects/$GITLAB_PROJECT_ID/issues"
           $GITLAB_TOKEN = $env:GITLAB_TOKEN
 
-          $GITHUB_GITLAB_STATUS_MAP = @{
-            opened = 'open'
-          }
-          $GITLAB_GITHUB_STATUS_MAP = @{
-            open = 'opened'
-          }
 
           # 获取数据库内容
           git clone $GITLAB_PROJECT_URI 'workspace'
@@ -68,7 +62,6 @@ jobs:
             Write-Output -InputObject '{}' | Out-File -FilePath 'databases.json'
           }
           $DB = Get-Content -Path 'databases.json' | ConvertFrom-Json -AsHashtable
-
 
           # 获取当前Issue的信息
           $githubIssue = (Invoke-WebRequest -Uri $GITHUB_ISSUE_URI -Authentication Bearer -Token $GITHUB_TOKEN).Content | ConvertFrom-Json
@@ -88,6 +81,9 @@ jobs:
             $gitlabIssue = (Invoke-WebRequest -Method Post -Uri "$GITLAB_ISSUE_URI$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
 
             $DB[$GITHUB_ISSUE] = $gitlabIssue.iid
+            if ($null -eq $DB[$GITHUB_ISSUE]){
+              throw
+            }
 
             # # 评论
             # if ($issue.comments -gt 0) {
@@ -112,9 +108,10 @@ jobs:
             if ($githubIssue.title -ne $gitlabIssue.title) {
               $query += "&title=$([Uri]::EscapeDataString($githubIssue.title))"
             }
-            if ($githubIssue.state -ne $GITHUB_GITLAB_STATUS_MAP[$gitlabIssue.state]) {
-              $query += "&state_event=$([Uri]::EscapeDataString($GITLAB_GITHUB_STATUS_MAP[$githubIssue.$issue.state]))"
-            }
+            # TODO: 此处需要修复
+            # if ($githubIssue.state -ne $GITHUB_GITLAB_STATUS_MAP[$gitlabIssue.state]) {
+            #   $query += "&state_event=$([Uri]::EscapeDataString($GITLAB_GITHUB_STATUS_MAP[$githubIssue.$issue.state]))"
+            # }
             if ($githubIssue.body -ne $gitlabIssue.description) {
               $query += "&description=[Uri]::EscapeDataString($githubIssue.body)"
             }
@@ -136,6 +133,7 @@ jobs:
               }
               $query = $query.TrimEnd('&remove_labels=').TrimEnd(',')
             }
+            $query = "?$($query.Trim('&'))"
 
             $gitlabIssue = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$($DB[$GITHUB_ISSUE])$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
           }
