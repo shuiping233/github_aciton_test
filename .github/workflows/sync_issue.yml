@@ -35,9 +35,10 @@ jobs:
       ISSUE: ${{ github.event.issue.number }}
       REPO: ${{ github.action_repository }}
     steps:
-      - shell: pwsh
+      - name: 执行脚本
+        shell: pwsh
         run: |
-          $token = ConvertTo-SecureString $env:TOKEN
+          $token = ConvertTo-SecureString -AsPlainText $env:TOKEN
           $response = Invoke-WebRequest `
             -Uri "https://api.github.com/repos/$($env:REPO)/issues/$($env:ISSUE)" `
             -Authentication Bearer `
