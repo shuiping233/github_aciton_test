@@ -30,14 +30,13 @@ jobs:
     name: Issue同步
     if: ${{ !github.event.issue.pull_request }}
     runs-on: ubuntu-latest
-    with: 
-      TOKEN: ${{ secrets.TEST_TOKEN }}
     env:
-      TOKEN: ${{ secrets.TEST_TOKEN }}
       ISSUE: ${{ github.event.issue.number }}
       REPO: ${{ github.repository }}
     steps:
       - name: 执行脚本
+        env:
+          TOKEN: ${{ secrets.TEST_TOKEN }}
         shell: pwsh
         run: |
           $token = ConvertTo-SecureString -AsPlainText "$env:TOKEN"
