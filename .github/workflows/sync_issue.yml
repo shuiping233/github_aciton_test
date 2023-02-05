@@ -33,7 +33,7 @@ jobs:
     env:
       TOKEN: ${{ github.token }}
       ISSUE: ${{ github.event.issue.number }}
-      REPO: ${{ github.action_repository }}
+      REPO: ${{ github.repository }}
     steps:
       - name: 执行脚本
         shell: pwsh
