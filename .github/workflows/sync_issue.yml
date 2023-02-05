@@ -40,8 +40,13 @@ jobs:
         run: |
           $token = ConvertTo-SecureString -AsPlainText "$env:GITHUB_TOKEN"
           $response = Invoke-WebRequest -Uri "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE" -Authentication Bearer -Token $token
-          Write-Host $response.Content
           $data = $response.Content | ConvertFrom-Json
           $title = $data.title
+          $user = $data.user.login
           $content = $data.body
+          $state = $data.state
+          Write-Host $title -ForegroundColor Yellow
+          Write-Host $state -ForegroundColor Yellow
+          Write-Host $user -ForegroundColor Yellow
+          Write-Host $content -ForegroundColor Yellow
 
