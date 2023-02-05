@@ -44,10 +44,12 @@ jobs:
           $data = $response.Content | ConvertFrom-Json
           $title = $data.title
           $user = $data.user.login
-          $content = $data.body
           $state = $data.state
+          $labels = $data.labels | ForEach-Object { $_.name }
+          $content = $data.body
           Write-Host $title -ForegroundColor Yellow
           Write-Host $state -ForegroundColor Yellow
           Write-Host $user -ForegroundColor Yellow
+          Write-Host $labels -ForegroundColor Yellow
           Write-Host $content -ForegroundColor Yellow
 
