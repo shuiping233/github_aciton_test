@@ -143,7 +143,7 @@ jobs:
             }
 
             # 评论
-            $commentdb = $DB[$GITHUB_ISSUE] ?? @{}
+            $commentdb = $DB[$GITHUB_ISSUE]['comments'] ?? @{}
             if ($githubIssue.comments -gt 0) {
               (Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $GITHUB_TOKEN).Content | ConvertFrom-Json | ForEach-Object {
                 if ($null -eq $commentdb[$_.id]) {
