@@ -6,7 +6,7 @@ on:
       - opened
       - edited
       - deleted
-      - transferred
+      # - transferred
       # - pinned
       # - unpinned
       - closed
@@ -15,15 +15,15 @@ on:
       # - unassigned
       - labeled
       - unlabeled
-      - locked
-      - unlocked
+      # - locked
+      # - unlocked
       # - milestoned
       # - demilestoned
-  issue_comment:
-    types:
-      - created
-      - edited
-      - deleted
+  # issue_comment:
+  #   types:
+  #     - created
+  #     - edited
+  #     - deleted
 
 jobs:
   sync:
@@ -34,42 +34,113 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ISSUE: ${{ github.event.issue.number }}
       REPO: ${{ github.repository }}
+      GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+      GITLAB_API: ${{ secrets.GITLAB_API }}
+      GITLAB_PROJECT_ID: ${{ secrets.GITLAB_PROJECT_ID }}
+      GITLAB_PROJECT_PATH: ${{ secrets.GITLAB_PROJECT_PATH }}
     steps:
       - name: 执行脚本
         shell: pwsh
         run: |
           # 获取Issue信息
-          $issue_uri = "https://api.github.com/repos/$env:REPO/issues/$env:ISSUE"
-          $comments_uri = "$issue_uri/comments"
-          $token = ConvertTo-SecureString -AsPlainText $env:GITHUB_TOKEN
-          $response = Invoke-WebRequest -Uri $issue_uri -Authentication Bearer -Token $token
-          $issue = $response.Content | ConvertFrom-Json
-          # 标题
-          $issue.title
-          # 创建日期
-          $issue.created_at
-          # 更新日期
-          $issue.updated_at
-          # 创建人
-          $issue.user.login
-          # 状态
-          $issue.state
-          # 标签
-          $issue.labels | ForEach-Object { $_.name }
-          # 内容
-          $issue.body
+          $GITHUB_PROJECT_ID = $env:REPO
+          $GITHUB_ISSUE = $env:ISSUE
+          $GITHUB_ISSUE_URI = "https://api.github.com/repos/$GITHUB_PROJECT_ID/issues/$GITHUB_ISSUE"
+          $GITHUB_ISSUE_COMMENTS_URI = "$GITHUB_ISSUE_URI/comments"
+          $GITHUB_TOKEN = ConvertTo-SecureString -AsPlainText $env:GITHUB_TOKEN
 
-          # 评论
-          if($issue.comments -gt 0){
-            $response = Invoke-WebRequest -Uri $comments_uri -Authentication Bearer -Token $token
-            $response.Content | ConvertFrom-Json | ForEach-Object {
-              # 创建人
-              $_.user.login
-              # 创建日期
-              $_.created_at
-              # 更新日期
-              $_.updated_at
-              # 内容
-              $_.body
-            }
+          $GITLAB_PROJECT_URI = $env:GITLAB_PROJECT_PATH
+          $GITLAB_PROJECT_ID = $env:GITLAB_PROJECT_ID
+          $GITLAB_ISSUE_URI = "$env:GITLAB_API/projects/$GITLAB_PROJECT_ID/issues"
+          $GITLAB_TOKEN = $env:GITLAB_TOKEN
+
+          $GITHUB_GITLAB_STATUS_MAP = @{
+            opened = 'open'
           }
+          $GITLAB_GITHUB_STATUS_MAP = @{
+            open = 'opened'
+          }
+
+          # 获取数据库内容
+          git clone $GITLAB_PROJECT_URI 'workspace'
+          Set-Location -Path 'workspace'
+          if (!(Test-Path -Path 'databases.json')) {
+            Write-Output -InputObject '{}' | Out-File -FilePath 'databases.json'
+          }
+          $DB = Get-Content -Path 'databases.json' | ConvertFrom-Json -AsHashtable
+
+
+          # 获取当前Issue的信息
+          $githubIssue = (Invoke-WebRequest -Uri $GITHUB_ISSUE_URI -Authentication Bearer -Token $GITHUB_TOKEN).Content | ConvertFrom-Json
+          if ($null -eq $DB[$GITHUB_ISSUE]) {
+            # 没有已经保存的Issue对应信息, 创建新的Issue
+            $query = ''
+            $query += "?title=$([Uri]::EscapeDataString($githubIssue.title))"
+            if ($null -ne $githubIssue.labels) {
+              $query += '&labels='
+              $query += ($githubIssue.labels | ForEach-Object { [Uri]::EscapeDataString($_.name) }) -join ','
+            }
+            if (![string]::IsNullOrEmpty($githubIssue.body)) {
+              $query += '&description='
+              $query += [Uri]::EscapeDataString($githubIssue.body)
+            }
+
+            $gitlabIssue = (Invoke-WebRequest -Method Post -Uri "$GITLAB_ISSUE_URI$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+
+            $DB[$GITHUB_ISSUE] = $gitlabIssue.iid
+
+            # # 评论
+            # if ($issue.comments -gt 0) {
+            #   $response = Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $token
+            #   $response.Content | ConvertFrom-Json | ForEach-Object {
+            #     # 创建人
+            #     $_.user.login
+            #     # 创建日期
+            #     $_.created_at
+            #     # 更新日期
+            #     $_.updated_at
+            #     # 内容
+            #     $_.body
+            #   }
+            # }
+          }
+          else {
+            # 有已保存的Issue信息，修改Issue
+            $gitlabIssue = (Invoke-WebRequest -Method Get -Uri "$GITLAB_ISSUE_URI/$($DB[$GITHUB_ISSUE])" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+
+            $query = ''
+            if ($githubIssue.title -ne $gitlabIssue.title) {
+              $query += "&title=$([Uri]::EscapeDataString($githubIssue.title))"
+            }
+            if ($githubIssue.state -ne $GITHUB_GITLAB_STATUS_MAP[$gitlabIssue.state]) {
+              $query += "&state_event=$([Uri]::EscapeDataString($GITLAB_GITHUB_STATUS_MAP[$githubIssue.$issue.state]))"
+            }
+            if ($githubIssue.body -ne $gitlabIssue.description) {
+              $query += "&description=[Uri]::EscapeDataString($githubIssue.body)"
+            }
+            if ($null -ne $githubIssue.labels) {
+              $query += '&add_labels='
+              $githubIssueLabels = $githubIssue.labels | ForEach-Object { $_.name }
+              $githubIssueLabels | ForEach-Object {
+                if ($gitlabIssue.labels -notcontains $_) {
+                  $query += "$([Uri]::EscapeDataString($_)),"
+                }
+              }
+              $query = $query.TrimEnd('&add_labels=').TrimEnd(',')
+
+              $query += '&remove_labels='
+              $gitlabIssue.labels | ForEach-Object {
+                if ($githubIssueLabels -notcontains $_) {
+                  $query += "$([Uri]::EscapeDataString($_)),"
+                }
+              }
+              $query = $query.TrimEnd('&remove_labels=').TrimEnd(',')
+            }
+
+            $gitlabIssue = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$($DB[$GITHUB_ISSUE])$query" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+          }
+
+          $DB | ConvertTo-Json | Out-File -Force -FilePath 'databases.json'
+          git add 'databases.json'
+          git commit -m ([DateTime]::Now.ToString('O'))
+          git push
