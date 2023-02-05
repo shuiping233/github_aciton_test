@@ -143,23 +143,22 @@ jobs:
             }
 
             # 评论
-            $commentdb = $DB[$GITHUB_ISSUE]['comments'] ?? @{}
+            $DB[$GITHUB_ISSUE]['comments'] ??= [System.Collections.Generic.Dictionary[string, string]]::new()
             if ($githubIssue.comments -gt 0) {
               (Invoke-WebRequest -Uri $GITHUB_ISSUE_COMMENTS_URI -Authentication Bearer -Token $GITHUB_TOKEN).Content | ConvertFrom-Json | ForEach-Object {
-                if ($null -eq $commentdb[$_.id]) {
+                $nid = $DB[$GITHUB_ISSUE]['comments'][$_.id]
+                if ($null -eq $nid) {
                   # 创建评论
-                  $gitlabNotes = (Invoke-WebRequest -Method POST -Uri "$GITLAB_ISSUE_URI/$iid/notes?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
-                  $commentdb[$_.id] = $gitlabNotes.id
+                  $gitlabNotes = (Invoke-WebRequest -Method POST -Uri "$GITLAB_ISSUE_URI/$iid/notes?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content | ConvertFrom-Json
+                  $DB[$GITHUB_ISSUE]['comments'][$_.id] = $gitlabNotes.id
                 }
                 else {
-                  $gitlabNotes = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid/notes/$($commentdb[$_.id])?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content
+                  $gitlabNotes = (Invoke-WebRequest -Method Put -Uri "$GITLAB_ISSUE_URI/$iid/notes/$nid?body=$([Uri]::EscapeDataString($_.body))" -Headers @{'PRIVATE-TOKEN' = $GITLAB_TOKEN }).Content | ConvertFrom-Json
                 }
               }
             }
-            $DB[$GITHUB_ISSUE]['comments'] = $commentdb
           }
-
-          $DB | ConvertTo-Json | Out-File -Force -FilePath 'databases.json'
+          $DB | ConvertTo-Json -Depth 5 | Out-File -Force -FilePath 'databases.json'
           git config user.email "actions@github.com"
           git config user.name "Github Actions"
           git add 'databases.json'
